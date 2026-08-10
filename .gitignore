@@ -1,0 +1,18 @@
+# secrets — the real .env NEVER goes to git (see .env.example)
+.env
+
+# runtime state (chat history, artifacts, caches, estate) — moves by file copy
+data/
+logs/
+# internal sales data (trends fallback; the deploy bundle carries the real one)
+Category.xlsx
+
+# local dev
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# deploy staging (bundles, saved images)
+deploy/
+*.tar

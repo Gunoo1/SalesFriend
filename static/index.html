@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SalesAgent</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/chat.css">
+</head>
+<body>
+
+<div id="login-view" class="hidden">
+  <form id="login-form" class="login-card">
+    <h1>SalesAgent</h1>
+    <p class="sub">Enalas sales intelligence</p>
+    <label>Username <input id="login-user" autocomplete="username" required></label>
+    <label>Password <input id="login-pass" type="password" autocomplete="current-password" required></label>
+    <button type="submit">Sign in</button>
+    <div id="login-error" class="login-error"></div>
+  </form>
+</div>
+
+<div id="app-view" class="hidden">
+  <aside id="sidebar">
+    <div class="side-head">
+      <span class="logo">SalesAgent</span>
+      <button id="new-convo" title="New conversation">+</button>
+    </div>
+    <nav id="convo-list"></nav>
+    <div class="side-foot">
+      <span id="me-name"></span>
+      <span class="side-foot-actions">
+        <button id="admin-btn" class="linkish hidden">admin</button>
+        <button id="logout" class="linkish">sign out</button>
+      </span>
+    </div>
+  </aside>
+
+  <main id="chat-panel">
+    <div id="messages"></div>
+    <form id="composer">
+      <button type="button" id="attach-btn" title="Upload a file (CSV/XLSX)" class="hidden">&#128206;</button>
+      <input type="file" id="attach-input" class="hidden" accept=".csv,.xlsx,.xls">
+      <button type="button" id="help-btn" title="Example prompts &amp; what the agent can do">&#10024;</button>
+      <textarea id="chat-input" rows="3"
+        placeholder="Ask for districts, contacts, branches, prices&hellip;"></textarea>
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </main>
+
+  <div id="split" title="Drag to resize &middot; double-click to reset"></div>
+
+  <section id="workspace">
+    <div class="ws-head">Results</div>
+    <div id="panels"></div>
+    <div id="ws-empty" class="ws-empty">Tables, charts and maps will appear here.</div>
+  </section>
+</div>
+
+<div id="help-overlay" class="help-overlay hidden">
+  <div class="help-modal">
+    <div class="help-head">
+      <div class="help-tabs">
+        <button class="help-tab active" data-tab="prompts">Example prompts</button>
+        <button class="help-tab" data-tab="tools">All capabilities</button>
+      </div>
+      <button id="help-close" class="icon" title="Close">&#10005;</button>
+    </div>
+    <div id="help-body-prompts" class="help-body"></div>
+    <div id="help-body-tools" class="help-body hidden"></div>
+  </div>
+</div>
+
+<div id="admin-overlay" class="help-overlay hidden">
+  <div class="help-modal">
+    <div class="help-head">
+      <div class="help-tabs">
+        <button class="adm-tab help-tab active" data-tab="users">Users</button>
+        <button class="adm-tab help-tab" data-tab="activity">Activity</button>
+      </div>
+      <button id="admin-close" class="icon" title="Close">&#10005;</button>
+    </div>
+    <div id="adm-body-users" class="help-body">
+      <form id="adm-add-form" class="adm-add">
+        <input id="adm-add-name" placeholder="username" autocomplete="off" required>
+        <input id="adm-add-pass" type="password" placeholder="password (min 6)"
+               autocomplete="new-password" required minlength="6">
+        <label class="adm-check"><input id="adm-add-admin" type="checkbox"> admin</label>
+        <button type="submit">Add user</button>
+        <span id="adm-add-msg" class="adm-msg"></span>
+      </form>
+      <div id="adm-users-table"></div>
+    </div>
+    <div id="adm-body-activity" class="help-body hidden"></div>
+  </div>
+</div>
+
+<script src="/vendor/chart.umd.min.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/artifacts.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "INSTRUCTIONAL SUPPLIES": ["lab safety gear (gloves, goggles, aprons)", "specimen bags / sample containers", "plastic bins for lab kit storage"],
+  "CAFETERIA SUPPLIES": ["food-service gloves", "poly aprons", "wire shelving (walk-in rated)"],
+  "CUSTODIAL SUPPLIES": ["janitorial carts", "can liners", "floor-safety signage"],
+  "INSTITUTIONAL EQUIPMENT": ["packing/mailroom stations", "utility carts", "lockers"],
+  "MEDICAL SUPPLIES": ["first-aid cabinets", "nitrile exam gloves", "biohazard bags"],
+  "ATHLETIC SUPPLIES": ["team storage bins", "field paint", "portable canopies"],
+  "BUILDING MATERIALS": ["safety rails", "anti-slip tape", "spill containment"],
+  "FREIGHT": [],
+  "OFFICE SUPPLIES": ["mailers and boxes", "label printers", "ergonomic mats"]
+}
