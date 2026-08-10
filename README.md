@@ -24,7 +24,7 @@ passed live**, estate decoupling verified live.
 
 ```
 cd SalesAgent
-.venv\Scripts\python.exe run.py          # http://localhost:8504
+.venv\Scripts\python.exe run.py          # http://localhost:8511
 .venv\Scripts\python.exe -m salesagent.auth add-user <name> [--admin]  # CLI seed
 ```
 
@@ -100,7 +100,7 @@ search falls back to DDG; open/closed verification needs it)
 not-configured) `ORCHESTRATOR_MODEL=claude-sonnet-5`
 `EXTRACT_MODEL=claude-haiku-4-5` `SEAMLESS_DAY_CAP=200`
 `SEAMLESS_CONFIRM_THRESHOLD=5` `SEAMLESS_CONVO_BUDGET=25`
-`SEAMLESS_DRY_RUN=1` `PORT=8504`
+`SEAMLESS_DRY_RUN=1` `PORT=8511`
 
 ## Credit safety (Seamless)
 
@@ -122,7 +122,7 @@ MUST annotate `config: RunnableConfig` or langgraph won't inject it.
 ## Deploy (Windows VM)
 
 `docker build -t salesagent .` then see the run line in the Dockerfile.
-Port 8504 (8501/8502/8503/8090 taken). Mount `data/` + `prompts/` dirs —
+Port 8511. Mount `data/` + `prompts/` dirs —
 that's ALL the state; there is no external database to copy in. The estate
 builds itself inside the container on first use (or pre-build by asking the
 agent once).

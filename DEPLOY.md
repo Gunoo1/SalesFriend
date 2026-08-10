@@ -33,7 +33,7 @@ git clone https://github.com/Eisco-LLC/SalesAgent.git   # or git pull
 cd SalesAgent
 docker build -t salesagent .
 
-docker run -d --name salesagent -p 8504:8504 --restart always `
+docker run -d --name salesagent -p 8511:8511 --restart always `
   --env-file C:\Apps\salesagent\.env `
   -v C:\Apps\salesagent\data:C:/data `
   -v C:\Apps\salesagent\prompts:C:/prompts `
@@ -41,8 +41,8 @@ docker run -d --name salesagent -p 8504:8504 --restart always `
   salesagent
 ```
 
-- Port **8504** (8501-8503 / 8090 / 8508 are taken on the VM).
-- Health: `http://<vm>:8504/api/health` (image has a HEALTHCHECK).
+- Port **8511**.
+- Health: `http://<vm>:8511/api/health` (image has a HEALTHCHECK).
 - Base is `servercore:ltsc2019` to match the Server 2019 VM (process
   isolation). If the host is ever Server 2022, change the FROM to ltsc2022.
 - **Env changes need `docker rm -f salesagent` + the run line again** —

@@ -27,13 +27,13 @@ COPY run.py .
 # own reference estate under C:/data/estate on first use (ask the agent to
 # run k12_build_reference — fresh public NCES/CRDC download, a few minutes).
 
-EXPOSE 8504
+EXPOSE 8511
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD powershell -Command "try { $r = Invoke-WebRequest -UseBasicParsing http://localhost:8504/api/health; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }"
+  CMD powershell -Command "try { $r = Invoke-WebRequest -UseBasicParsing http://localhost:8511/api/health; if ($r.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }"
 
 # Run:
-#   docker run -d --name salesagent -p 8504:8504 --restart always ^
+#   docker run -d --name salesagent -p 8511:8511 --restart always ^
 #     --env-file C:\Apps\salesagent\.env ^
 #     -v C:\Apps\salesagent\data:C:/data -v C:\Apps\salesagent\prompts:C:/prompts ^
 #     -e DATA_DIR=C:/data -e PROMPTS_DIR=C:/prompts salesagent
-CMD ["python", "-m", "uvicorn", "salesagent.web.app:app", "--host", "0.0.0.0", "--port", "8504", "--workers", "1"]
+CMD ["python", "-m", "uvicorn", "salesagent.web.app:app", "--host", "0.0.0.0", "--port", "8511", "--workers", "1"]

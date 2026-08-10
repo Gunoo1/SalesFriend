@@ -98,7 +98,7 @@ def load_settings() -> Settings:
         acumatica_password=os.environ.get("ACUMATICA_PASSWORD", ""),
         acumatica_price_class=os.environ.get("ACUMATICA_PRICE_CLASS", "SHOPGUEST"),
         category_xlsx=_path("CATEGORY_XLSX", ROOT / "Category.xlsx"),
-        port=int(os.environ.get("PORT", "8504")),
+        port=int(os.environ.get("PORT", "8511")),
         session_ttl_hours=int(os.environ.get("SESSION_TTL_HOURS", "72")),
         agent_recursion_limit=int(os.environ.get("AGENT_RECURSION_LIMIT", "1000000")),
         agent_step_warn_every=int(os.environ.get("AGENT_STEP_WARN_EVERY", "50")),
