@@ -563,4 +563,213 @@ ok([m.content for m in grown[:len(msgs)]] == [m.content for m in out],
 short = [HumanMessage(content="hi"), AIMessage(content="hello")]
 ok(_trim_history(short) == short, "short conversations pass through")
 
+# ---------------------------------------------------------------- rural
+print("rural (RUCA + NCES locale):")
+from salesagent.integrations import rural
+
+ok(rural.ruca_class(1) == "metro" and rural.ruca_class(6) == "micropolitan"
+   and rural.ruca_class(7) == "small town"
+   and rural.ruca_class(10) == "rural remote", "RUCA class bands")
+ok(rural.ruca_class(None) is None, "RUCA None passthrough")
+ok(rural.REMOTE_MIN == 7, "remote cutoff is RUCA 7")
+ok(rural.zip5("35901-1234") == "35901" and rural.zip5(501) == "00501"
+   and rural.zip5("  67001 ") == "67001" and rural.zip5("n/a") is None,
+   "zip5 normalizes ZIP+4 / lost leading zeros / junk")
+ok(rural.locale_label(43) == "Rural — remote"
+   and rural.locale_label("21") == "Suburb — large"
+   and rural.locale_label(None) is None, "locale labels")
+frag, args = rural.locale_where("locale", rural_only=True)
+ok(frag == "locale BETWEEN ? AND ?" and args == [41, 43],
+   "rural_only -> locale 41-43")
+frag, args = rural.locale_where("d.locale", locale_groups=["town", "rural"])
+ok("OR" in frag and args == [31, 33, 41, 43], "locale_groups town+rural")
+try:
+    rural.locale_where("x", locale_groups=["bogus"])
+    ok(False, "bad locale group raises")
+except ValueError as e:
+    ok("city" in str(e), "bad locale group raises with options")
+_rc = sqlite3.connect(":memory:")
+_rc.row_factory = sqlite3.Row
+_rc.execute("CREATE TABLE ref_zip_ruca (zip TEXT PRIMARY KEY, state TEXT,"
+            " ruca INTEGER)")
+_rc.executemany("INSERT INTO ref_zip_ruca VALUES (?,?,?)",
+                [("59001", "MT", 10), ("10001", "NY", 1), ("67001", "KS", 7)])
+hits = rural.lookup_ruca(_rc, ["59001", "10001", "99999", None, "67001"])
+ok(hits == {"59001": 10, "10001": 1, "67001": 7},
+   "lookup_ruca batch: hits found, misses absent")
+
+# ---------------------------------------------------------------- ipeds
+print("ipeds (colleges estate):")
+from salesagent.integrations import ipeds
+
+_hd = {"ï»¿UNITID": "100654", "INSTNM": "Test College",
+       "IALIAS": "TC", "ADDR": "1 Rd", "CITY": "Nowhere", "STABBR": "mt",
+       "ZIP": "59001-1234", "COUNTYNM": "Carbon",
+       "GENTELE": "40655512349999", "WEBADDR": "www.tc.edu",
+       "CHFNM": "Dr. X", "CHFTITLE": "President", "SECTOR": "4",
+       "ICLEVEL": "2", "CONTROL": "1", "INSTSIZE": "1", "LOCALE": "43",
+       "HBCU": "2", "TRIBAL": "2", "HOSPITAL": "2", "MEDICAL": "2",
+       "C21BASIC": "1", "CYACTIVE": "1", "LATITUDE": "45.1",
+       "LONGITUD": "-109.2"}
+_t = ipeds.row_to_college(_hd)
+ok(_t is not None and _t[0] == 100654,
+   "UNITID matched through the latin-1 BOM prefix")
+ok(_t[5] == "MT" and _t[6] == "59001", "state uppercased, zip5 from ZIP+4")
+ok(_t[8] == "4065551234", "phone: first 10 digits, extension dropped")
+ok(_t[9] == "https://www.tc.edu", "website gets scheme")
+ok(_t[22] == 1, "CYACTIVE 1 -> active")
+ok(ipeds.row_to_college({"UNITID": "-2", "INSTNM": "x"}) is None,
+   "negative UNITID -> unusable row")
+_cc = sqlite3.connect(":memory:")
+_cc.row_factory = sqlite3.Row
+_cc.executescript(estate.COLLEGESREF_SCHEMA)
+_cc.execute(ipeds.INSERT_SQL, _t)
+_t2 = list(_t)
+_t2[0] = 2; _t2[1] = "Urban U"; _t2[16] = 11; _t2[12] = 1
+_t2[15] = 5; _t2[13] = 1; _t2[14] = 1; _t2[19] = 1
+_cc.execute(ipeds.INSERT_SQL, tuple(_t2))
+_rows, _ = ipeds.query_colleges(_cc, rural_only=True)
+ok(len(_rows) == 1 and _rows[0]["name"] == "Test College",
+   "colleges rural_only filter")
+ok(_rows[0]["locale_label"] == "Rural — remote"
+   and _rows[0]["phone"] == "(406) 555-1234"
+   and _rows[0]["size_label"] == "<1,000", "college labels + phone format")
+_rows, _ = ipeds.query_colleges(_cc, controls=["public"], min_size_class=5)
+ok(len(_rows) == 1 and _rows[0]["name"] == "Urban U",
+   "control name + size class filters")
+_rows, _ = ipeds.query_colleges(_cc, with_hospital=True)
+ok(len(_rows) == 1 and _rows[0]["name"] == "Urban U", "hospital filter")
+try:
+    ipeds.query_colleges(_cc, controls=["bogus"])
+    ok(False, "bad control raises")
+except ValueError:
+    ok(True, "bad control raises ValueError")
+
+# ---------------------------------------------------------------- pss
+print("pss (private schools estate):")
+from salesagent.integrations import pss
+
+ok(pss.GRADE_LABELS[13] == "8" and pss.GRADE_LABELS[17] == "12"
+   and pss.GRADE_LABELS[3] == "K" and pss.GRADE_LABELS[2] == "PK"
+   and pss.GRADE_LABELS[1] == "Ungraded",
+   "PSS grade codes (empirically confirmed: elem tops at 13=8th)")
+_ps = {"PPIN": "A123", "PINST": "St Test", "PADDRS": "2 Rd",
+       "PCITY": "Rural City", "PSTABB": "ks", "PZIP": "67001",
+       "PCNTNM": "Sedgwick", "PPHONE": "3165551234", "LEVEL": "3",
+       "LOGR2022": "2", "HIGR2022": "17", "RELIG": "1", "TYPOLOGY": "2",
+       "NUMSTUDS": "250", "NUMTEACH": "18.5", "SIZE": "3",
+       "ULOCALE22": "42", "LATITUDE22": "37.7", "LONGITUDE22": "-97.3"}
+_pt = pss.row_to_school(_ps, "2021-22")
+ok(_pt[0] == "A123" and _pt[4] == "KS" and _pt[7] == "3165551234",
+   "pss row basics")
+ok(_pt[9] == "PK" and _pt[10] == "12", "grade span decoded PK-12")
+ok(pss.row_to_school({"PPIN": "", "PINST": "x"}, "y") is None,
+   "missing PPIN -> unusable row")
+_pc = sqlite3.connect(":memory:")
+_pc.row_factory = sqlite3.Row
+_pc.executescript(estate.PSSREF_SCHEMA)
+_pc.execute(pss.INSERT_SQL, _pt)
+_pt2 = list(_pt)
+_pt2[0] = "B9"; _pt2[1] = "City Day School"; _pt2[16] = 11
+_pt2[11] = 3; _pt2[13] = 800
+_pc.execute(pss.INSERT_SQL, tuple(_pt2))
+_prow, _ = pss.query_private_schools(_pc, rural_only=True)
+ok(len(_prow) == 1 and _prow[0]["name"] == "St Test",
+   "private schools rural_only filter")
+ok(_prow[0]["grades"] == "PK-12"
+   and _prow[0]["typology_label"] == "Catholic — diocesan"
+   and _prow[0]["locale_label"] == "Rural — distant", "pss labels")
+_prow, _ = pss.query_private_schools(_pc, religious=["nonsectarian"],
+                                     min_enrollment=500)
+ok(len(_prow) == 1 and _prow[0]["name"] == "City Day School",
+   "religious name + enrollment filters")
+try:
+    pss.query_private_schools(_pc, religious=["bogus"])
+    ok(False, "bad religious raises")
+except ValueError:
+    ok(True, "bad religious filter raises ValueError")
+
+# ------------------------------------------------- rural filters on finds
+print("rural filters on labs + districts:")
+_lc = sqlite3.connect(":memory:")
+_lc.row_factory = sqlite3.Row
+_lc.executescript(estate.LABSREF_SCHEMA)
+_lbase = ["X", "Lab", None, "1 St", None, "Town", "TX", "79000", None,
+          "8065551234", None, 15, 1, 4, 1, None, None, "2010-01-01", None,
+          50000, 0, "R"]
+for _i2, _ur in enumerate(("R", "U", "R")):
+    _lrow = list(_lbase)
+    _lrow[0] = f"45D{_i2}"; _lrow[1] = f"Lab {_i2}"; _lrow[21] = _ur
+    _lc.execute(clia.INSERT_SQL, tuple(_lrow))
+_lr, _lw = clia.query_labs(_lc, rural_only=True)
+ok(len(_lr) == 2 and all(x["area"] == "Rural" for x in _lr),
+   "labs rural_only -> CMS R flag, Area column labeled")
+ok(any("CBSA" in w for w in _lw), "labs rural warning explains the flag")
+_kc = sqlite3.connect(":memory:")
+_kc.row_factory = sqlite3.Row
+_kc.executescript(estate.K12REF_SCHEMA)
+for _lid, _loc in (("0000001", 43), ("0000002", 21), ("0000003", 33)):
+    _kc.execute("INSERT INTO districts (leaid,name,state,agency_type,"
+                "charter,locale,enrollment) VALUES (?,?,?,1,0,?,500)",
+                (_lid, "D" + _lid, "KS", _loc))
+_kr, _ = k12_local.find_districts(_kc, rural_only=True)
+ok(len(_kr) == 1 and _kr[0]["area"] == "Rural",
+   "districts rural_only + Area label")
+_kr, _ = k12_local.find_districts(_kc, locale_groups=["town", "rural"])
+ok(len(_kr) == 2, "districts locale_groups town+rural")
+
+# ---------------------------------------------------------------- grants
+print("corporate grants seed + query:")
+import json as _json2
+from salesagent.tools.grants import query_grants
+
+_seeds_dir = Path(__file__).resolve().parent.parent / "salesagent" / "ref" / "seeds"
+_grants = _json2.loads((_seeds_dir / "corporate_grants.json"
+                        ).read_text(encoding="utf-8"))
+ok(len(_grants) >= 25, f"seed has {len(_grants)} programs")
+ok(all(g["sponsor"] and g["program"] and g["url"].startswith("http")
+       and g["audience"] in ("k12", "higher_ed", "both")
+       and g["confidence"] in ("high", "medium", "low") and g["as_of"]
+       for g in _grants), "every seed row: sponsor/program/url/audience/"
+   "confidence/as_of valid")
+ok(sum(1 for g in _grants if g.get("rural_priority")) >= 8,
+   "enough rural-priority programs to pair with rural lead lists")
+_gc = sqlite3.connect(":memory:")
+_gc.row_factory = sqlite3.Row
+_gc.execute("CREATE TABLE ref_corporate_grants (sponsor TEXT, program TEXT,"
+            " audience TEXT, focus TEXT, award_range TEXT, cycle TEXT,"
+            " eligibility TEXT, states_json TEXT, rural_priority INTEGER,"
+            " url TEXT, confidence TEXT, as_of TEXT, seeded_from TEXT,"
+            " seed_date TEXT, PRIMARY KEY (sponsor, program))")
+for _g in _grants:
+    _gc.execute("INSERT INTO ref_corporate_grants VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (_g["sponsor"], _g["program"], _g["audience"], _g["focus"],
+                 _g["award_range"], _g["cycle"], _g["eligibility"],
+                 _json2.dumps(_g["states"]) if _g.get("states") else None,
+                 1 if _g.get("rural_priority") else 0, _g["url"],
+                 _g["confidence"], _g["as_of"], "seed", "now"))
+_ga = query_grants(_gc)
+_go = query_grants(_gc, state="OH")
+ok(len(_go) < len(_ga) and all(
+    g["states_txt"] == "national" or "OH" in g["states_txt"] for g in _go),
+   "state filter keeps national + OH-covering programs")
+ok(all(g["rural_priority"] for g in query_grants(_gc, rural_priority=True)),
+   "rural_priority filter")
+ok(all(g["confidence"] == "high"
+       for g in query_grants(_gc, min_confidence="high")),
+   "min_confidence filter")
+ok(all(g["audience"] in ("k12", "both")
+       for g in query_grants(_gc, audience="k12")),
+   "audience filter includes 'both'")
+ok(len(query_grants(_gc, q="chemistry")) >= 1, "free-text q hits ACS-Hach")
+
+# ---------------------------------------------------------- zip_ruca seed
+print("zip_ruca seed:")
+_zr = _json2.loads((_seeds_dir / "zip_ruca.json").read_text(encoding="utf-8"))
+ok(len(_zr) > 40000, f"seed has {len(_zr):,} zips")
+ok(all(len(x) == 3 and len(x[0]) == 5 and isinstance(x[2], int)
+       and 1 <= x[2] <= 10 for x in _zr[:2000]),
+   "seed rows are [zip5, state, ruca 1-10]")
+
 print(f"\nALL {PASS} ASSERTIONS PASSED")

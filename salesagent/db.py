@@ -257,6 +257,30 @@ CREATE TABLE IF NOT EXISTS ref_basket_adjacency (
   seeded_from      TEXT,
   seed_date        TEXT
 );
+
+CREATE TABLE IF NOT EXISTS ref_zip_ruca (
+  zip   TEXT PRIMARY KEY,                      -- 5-digit
+  state TEXT,
+  ruca  INTEGER                                -- RUCA1 1-10 (7+ = remote)
+);
+
+CREATE TABLE IF NOT EXISTS ref_corporate_grants (
+  sponsor        TEXT NOT NULL,
+  program        TEXT NOT NULL,
+  audience       TEXT,                         -- k12|higher_ed|both
+  focus          TEXT,
+  award_range    TEXT,
+  cycle          TEXT,
+  eligibility    TEXT,
+  states_json    TEXT,                         -- null = national
+  rural_priority INTEGER,
+  url            TEXT,
+  confidence     TEXT,                         -- high|medium|low
+  as_of          TEXT,
+  seeded_from    TEXT,
+  seed_date      TEXT,
+  PRIMARY KEY (sponsor, program)
+);
 """
 
 
@@ -374,3 +398,31 @@ def _seed_reference(conn: sqlite3.Connection, settings: Settings) -> None:
                         "INSERT OR REPLACE INTO ref_basket_adjacency VALUES (?,?,?,?)",
                         (cat, json.dumps(sugg),
                          "timMtesting/t10_uline_crosssell.py ADJACENT", now))
+
+    if not conn.execute("SELECT 1 FROM ref_zip_ruca LIMIT 1").fetchone():
+        f = seeds / "zip_ruca.json"
+        if f.exists():
+            rows = json.loads(f.read_text(encoding="utf-8"))
+            with conn:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO ref_zip_ruca VALUES (?,?,?)",
+                    rows)
+
+    if not conn.execute(
+            "SELECT 1 FROM ref_corporate_grants LIMIT 1").fetchone():
+        f = seeds / "corporate_grants.json"
+        if f.exists():
+            rows = json.loads(f.read_text(encoding="utf-8"))
+            with conn:
+                for r in rows:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO ref_corporate_grants VALUES "
+                        "(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        (r["sponsor"], r["program"], r.get("audience"),
+                         r.get("focus"), r.get("award_range"),
+                         r.get("cycle"), r.get("eligibility"),
+                         json.dumps(r["states"]) if r.get("states") else None,
+                         1 if r.get("rural_priority") else 0,
+                         r.get("url"), r.get("confidence"),
+                         r.get("as_of"), "ref/seeds/corporate_grants.json",
+                         now))

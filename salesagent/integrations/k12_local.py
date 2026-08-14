@@ -41,6 +41,7 @@ FIND_COLUMNS = [
     ("state", "State", "string"),
     ("city", "City", "string"),
     ("county_name", "County", "string"),
+    ("area", "Area", "string"),
     ("enrollment", "Students", "int"),
     ("number_of_schools", "Schools", "int"),
     ("sci_sections", "Sci sections", "number"),
@@ -68,13 +69,22 @@ def find_districts(conn: sqlite3.Connection, *,
                    min_rev_title_i: float | None = None,
                    min_rev_vocational: float | None = None,
                    min_cap_instruc_equip: float | None = None,
+                   rural_only: bool = False,
+                   locale_groups: list[str] | None = None,
                    sort: str = "enrollment",
                    limit: int = 100,
                    ) -> tuple[list[dict], list[str]]:
     """Rich district search over the app's own estate. Returns (rows, warnings)."""
+    from .rural import locale_where
     warnings: list[str] = []
     where: list[str] = ["d.agency_type IN (1, 7)"]  # regular + charter agencies
     args: list = []
+
+    frag, fa = locale_where("d.locale", rural_only=rural_only,
+                            locale_groups=locale_groups)
+    if frag:
+        where.append(frag)
+        args += fa
 
     states = clean_states(states)
     if states:
@@ -116,6 +126,11 @@ def find_districts(conn: sqlite3.Connection, *,
     sql = f"""
     SELECT d.leaid, d.name, d.state, d.city, d.county_name, d.enrollment,
            d.number_of_schools,
+           CASE WHEN d.locale BETWEEN 11 AND 13 THEN 'City'
+                WHEN d.locale BETWEEN 21 AND 23 THEN 'Suburb'
+                WHEN d.locale BETWEEN 31 AND 33 THEN 'Town'
+                WHEN d.locale BETWEEN 41 AND 43 THEN 'Rural'
+           END AS area,
            cr.sci_sections, cr.ap_sci_schools,
            f.rev_title_i, f.rev_vocational, f.rev_math_sci,
            f.cap_instruc_equip, f.rev_total,

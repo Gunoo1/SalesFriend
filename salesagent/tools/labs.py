@@ -120,6 +120,10 @@ def _columns() -> list[dict]:
                             "description": "cap to target SMALL labs, e.g. 500000"},
         "max_affiliated_labs": {"type": "integer",
                                 "description": "0 = single-site only"},
+        "rural_only": {"type": "boolean", "default": False,
+                       "description": "only labs outside metro/micro areas "
+                                      "(CMS rural flag) — the rarely-"
+                                      "visited list"},
         "sort": {"type": "string",
                  "enum": ["test_volume", "name", "state", "oldest"],
                  "default": "test_volume"},

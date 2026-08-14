@@ -35,12 +35,16 @@ credit/job counts + a merged recent-events feed incl. Seamless spends vs the
 day cap). Removing a user locks them out immediately; their past
 conversations stay in the DB for history but become unreachable.
 
-## What the agent can do (32 tools)
+## What the agent can do (38 tools)
 
 | Family | Tools | Notes |
 |---|---|---|
-| K12 intel (free, own estate) | k12_build_reference (**builds the estate** from fresh NCES CCD/F-33/CRDC public data), k12_find_districts, k12_district_profile, k12_contacts | estate missing → tools say so and the agent builds it; partial-state estates refuse uncovered queries |
-| Lab leads (free, own estate) | labs_build_reference (**builds the estate** from the public CMS CLIA registry — the census of every US clinical lab), labs_find | ~300k active labs w/ phones; defaults = active independent labs, chains/franchises name-screened; filters: state, facility type, certificate class, test volume, single-site |
+| K12 intel (free, own estate) | k12_build_reference (**builds the estate** from fresh NCES CCD/F-33/CRDC public data), k12_find_districts, k12_district_profile, k12_contacts | estate missing → tools say so and the agent builds it; partial-state estates refuse uncovered queries; rural_only/locale_groups filters (~8,900 rural districts) |
+| Lab leads (free, own estate) | labs_build_reference (**builds the estate** from the public CMS CLIA registry — the census of every US clinical lab), labs_find | ~300k active labs w/ phones; defaults = active independent labs, chains/franchises name-screened; filters: state, facility type, certificate class, test volume, single-site, rural_only |
+| College leads (free, own estate) | colleges_build_reference (**builds the estate** from the official IPEDS directory, ~1MB), colleges_find | ~5,900 active institutions w/ phone/website/president NAME; filters: level, control, size class, locale (540 rural campuses), HBCU, hospital-on-campus |
+| Private school leads (free, own estate) | private_schools_build_reference (**builds the estate** from the federal NCES PSS census, ~4MB), private_schools_find | ~22k private schools, 98% w/ phones; filters: enrollment, level, Catholic/religious/nonsectarian, locale (4,100 rural) |
+| Rural targeting | classify_rural (+ rural_only on the four finds above) | USDA RUCA codes for 41k zips vendored as a seed; stamps RUCA 1-10 + remote flag on ANY table with zips |
+| Corporate grants (seeded) | grants_find | 32 curated corporate/foundation science-grant programs (12 rural-priority) w/ award ranges + cycles; agent verifies deadlines via fetch_page before pitching |
 | People (Seamless.ai) | seamless_search (preview), seamless_research (**paid → approval card**) | 5-layer credit rails; `SEAMLESS_DRY_RUN=1` default; results persist to contacts_app (the app's own contact history) |
 | Gov spend (free) | usaspending_vendor_customers, usaspending_keyword_vendors (+Haiku noise filter), checkbook_vendor_customers, checkbook_basket | coverage limits baked into descriptions |
 | Geo | find_company_locations (Fastenal=locator scrape job, others=OSM brand job; memoized 30d in company_locations), find_nearby_orgs (Overpass, vendored state bboxes), verify_business_status (Serper, open/closed) | grainger.com scrape denylisted → OSM |

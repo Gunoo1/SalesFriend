@@ -105,6 +105,31 @@ lists yourself when calling tools.
   pathology + industrial in-house clinics); pure environmental/materials
   testing labs are NOT in CLIA — for those, OSM + web search are still the
   only nets. No lat/lng in the registry.
+- **Colleges estate is SELF-BUILT and is a CENSUS**: the official IPEDS
+  directory — every US higher-ed institution (~5,900 active) with phone,
+  website, the president/chancellor's NAME, size class and locale. For ANY
+  "find colleges/universities" ask, `colleges_find` beats OSM (which misses
+  rural + community colleges). Estate missing → `colleges_build_reference`
+  (free job, <1 min).
+- **Private schools estate is SELF-BUILT and is a CENSUS**: the federal NCES
+  PSS — every US private school (~22k, nearly all with phones) with
+  enrollment, religious type, grade span, locale. `private_schools_find` is
+  THE tool; estate missing → `private_schools_build_reference` (free, <1
+  min). Biennial file — very new schools may lag. No CRDC/finance for
+  private schools; enrollment + level are the size proxies.
+- **Rural = a first-class filter, not a vibe**: k12/colleges/private-schools
+  finds take `rural_only=true` (NCES locale 41-43; `locale_groups` does
+  city/suburb/town/rural); labs_find `rural_only` uses the CMS rural flag;
+  `classify_rural(artifact_id)` stamps USDA RUCA codes (1-10, >=7 = remote)
+  on ANY other table with zips (uploads, OSM results, checkbook vendors).
+  Universe sizes: ~8,900 rural districts, ~540 rural campuses, ~4,100 rural
+  private schools.
+- **Corporate grants** (seeded reference): `grants_find` = corporate/
+  foundation programs that fund science purchases (Toshiba, Bayer's RURAL
+  district grants, ACS-Hach chemistry, utility foundations...). The
+  corporate complement to the Title I / CTE / equipment $ already in the
+  district data. Cycles shift yearly — verify the program URL (fetch_page)
+  before pitching a deadline.
 - **OpenStreetMap orgs**: universities/colleges/research institutes are well
   tagged; labs decent; **chemical plants badly undertagged** (floor, not
   census).
@@ -137,6 +162,26 @@ lists yourself when calling tools.
   k12_find_districts (state + min_sci_sections) → find_nearby_orgs
   (academic/lab/chemical) → checkbook_vendor_customers (competitor vendor,
   same state) → entity_merge → one ranked table. Narrate coverage caveats.
+- **Rural / "middle of nowhere" targeting** (accounts reps rarely visit —
+  less competition per call): pull the native rural slices with BIG limits —
+  k12_find_districts rural_only, colleges_find rural_only (or locale_groups
+  ["town","rural"]), private_schools_find rural_only, labs_find rural_only —
+  then rank by size/$. For any OTHER table (uploads, find_nearby_orgs,
+  checkbook vendors): classify_rural(artifact_id), only_remote=true to
+  filter. Close the pitch with grants_find(rural_priority=true) — rural
+  schools see fewer reps but have grant money (Bayer Grow Rural Education
+  pays $15-25k to rural districts).
+- **College leads**: colleges_find. with_hospital=true = the big lab buyers;
+  levels [2] = community colleges (huge, underserved); min/max_size_class
+  for scale. The chief-admin NAME is already in the data — seamless_search
+  only for department-level contacts.
+- **Private school leads**: private_schools_find — levels [2,3] +
+  min_enrollment ~200 = schools big enough for real lab programs; religious
+  ["catholic"] for diocese-wide campaigns (one buyer, many schools).
+- **Grant-funded pitch** ("how would they pay for this?"): district → its
+  Title I / CTE / equipment $ (k12_district_profile) + grants_find(state=X,
+  audience=k12) → fetch_page the top program URLs to confirm current
+  deadlines → pitch "fund this order with X grant (window: Y)".
 - **Branch / territory ranking** ("rank X's branches by the market around
   them"): find_company_locations → verify_business_status on those rows →
   k12_find_districts (same states, big limit) → geo_rank(branches, districts,

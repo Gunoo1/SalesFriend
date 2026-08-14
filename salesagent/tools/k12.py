@@ -118,11 +118,12 @@ def _columns() -> list[dict]:
     description=(
         "Search all ~19,600 US public school districts (app's own estate, "
         "fresh NCES data) with filters: state, name/city, enrollment, weekly "
-        "science class sections + AP science (CRDC), charter, county, and "
+        "science class sections + AP science (CRDC), charter, county, "
         "federal dollars (Title I, CTE/Perkins, math/science, capital "
-        "instructional equipment). Returns a table artifact with lat/lng for "
-        "mapping. Sort by enrollment|sci_sections|title_i|cap_equip|name. "
-        "Free, local."),
+        "instructional equipment), and locale (rural_only=true = ~8,900 "
+        "rural districts; locale_groups city/suburb/town/rural). Returns a "
+        "table artifact with lat/lng for mapping. Sort by enrollment|"
+        "sci_sections|title_i|cap_equip|name. Free, local."),
     input_schema={"properties": {
         "states": _STATES_PARAM,
         "q": {"type": "string", "description": "district or city name substring"},
@@ -137,6 +138,12 @@ def _columns() -> list[dict]:
         "min_rev_vocational": {"type": "number", "description": "CTE/Perkins $/yr"},
         "min_cap_instruc_equip": {"type": "number",
                                   "description": "capital outlay on instructional equipment $/yr"},
+        "rural_only": {"type": "boolean", "default": False,
+                       "description": "only districts in NCES rural locales "
+                                      "(41-43) — ~8,900 districts reps "
+                                      "rarely visit"},
+        "locale_groups": {"type": "array", "items": {"type": "string"},
+                          "description": "any of city|suburb|town|rural"},
         "sort": {"type": "string",
                  "enum": ["enrollment", "sci_sections", "title_i", "cap_equip",
                           "name"], "default": "enrollment"},
@@ -151,7 +158,10 @@ def k12_find_districts(ctx, **params) -> dict:
     cov_err = _coverage_error(m, params.get("states") or [])
     if cov_err:
         return cov_err
-    rows, warnings = k12_local.find_districts(ctx.k12(), **params)
+    try:
+        rows, warnings = k12_local.find_districts(ctx.k12(), **params)
+    except ValueError as e:
+        return error_envelope(str(e), error_type="BadParams")
     cols = _columns()
     keys = [c["key"] for c in cols]
     data = [[r.get(k) for k in keys] for r in rows]

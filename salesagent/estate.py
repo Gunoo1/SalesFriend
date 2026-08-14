@@ -124,6 +124,85 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 
 
+COLLEGES_MISSING_MSG = (
+    "No colleges reference estate has been built in this app yet. Call "
+    "colleges_build_reference (free background job, ~1 minute — a 1MB "
+    "download of the official IPEDS directory of every US college) and "
+    "retry once the job finishes.")
+
+# Schema of a colleges run snapshot (IPEDS HD directory file).
+COLLEGESREF_SCHEMA = """
+CREATE TABLE IF NOT EXISTS colleges (
+  unitid      INTEGER PRIMARY KEY,      -- IPEDS UNITID
+  name        TEXT NOT NULL,
+  alias       TEXT,
+  street      TEXT,
+  city        TEXT,
+  state       TEXT,                     -- USPS 2-letter
+  zip         TEXT,                     -- 5-digit
+  county      TEXT,
+  phone       TEXT,                     -- 10 digits
+  website     TEXT,
+  chief_name  TEXT,                     -- president/chancellor (CHFNM)
+  chief_title TEXT,
+  sector      INTEGER,                  -- IPEDS SECTOR (0 = admin unit)
+  level       INTEGER,                  -- ICLEVEL 1=4yr+ 2=2yr 3=<2yr
+  control     INTEGER,                  -- 1 public, 2 private-NP, 3 for-profit
+  size_class  INTEGER,                  -- INSTSIZE 1..5 (<1k .. 20k+)
+  locale      INTEGER,                  -- NCES urban-centric (41-43 = rural)
+  hbcu        INTEGER,
+  tribal      INTEGER,
+  hospital    INTEGER,                  -- runs a hospital
+  medical     INTEGER,                  -- grants medical degrees
+  carnegie    INTEGER,                  -- C21BASIC (15/16 = R1/R2)
+  active      INTEGER,                  -- CYACTIVE == 1
+  latitude    REAL,
+  longitude   REAL
+);
+CREATE INDEX IF NOT EXISTS idx_col_state ON colleges(state);
+CREATE INDEX IF NOT EXISTS idx_col_locale ON colleges(locale);
+
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+"""
+
+PSS_MISSING_MSG = (
+    "No private-schools reference estate has been built in this app yet. "
+    "Call private_schools_build_reference (free background job, ~1 minute — "
+    "a 4MB download of the official NCES Private School Universe Survey, "
+    "every US private school with phone numbers) and retry once the job "
+    "finishes.")
+
+# Schema of a private-schools run snapshot (NCES PSS).
+PSSREF_SCHEMA = """
+CREATE TABLE IF NOT EXISTS private_schools (
+  ppin        TEXT PRIMARY KEY,         -- PSS school id
+  name        TEXT NOT NULL,
+  street      TEXT,
+  city        TEXT,
+  state       TEXT,                     -- USPS 2-letter
+  zip         TEXT,                     -- 5-digit
+  county      TEXT,
+  phone       TEXT,                     -- 10 digits
+  level       INTEGER,                  -- 1 elementary, 2 secondary, 3 combined
+  lo_grade    TEXT,                     -- decoded (PK/K/1..12)
+  hi_grade    TEXT,
+  religious   INTEGER,                  -- 1 Catholic, 2 other religious, 3 nonsectarian
+  typology    INTEGER,                  -- 9-way PSS typology
+  enrollment  INTEGER,                  -- NUMSTUDS
+  teachers    REAL,                     -- NUMTEACH (FTE)
+  size_class  INTEGER,                  -- 1..6 (<50 .. 750+)
+  locale      INTEGER,                  -- NCES urban-centric (41-43 = rural)
+  latitude    REAL,
+  longitude   REAL,
+  year        TEXT                      -- school year, e.g. 2021-22
+);
+CREATE INDEX IF NOT EXISTS idx_pss_state ON private_schools(state);
+CREATE INDEX IF NOT EXISTS idx_pss_locale ON private_schools(locale);
+
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+"""
+
+
 def domain_dir(settings, domain: str) -> Path:
     return Path(settings.estate_dir) / domain
 
@@ -206,4 +285,26 @@ def open_labs(settings) -> sqlite3.Connection:
     db = Path(m["run_dir"]) / m.get("db_file", "labsref.db")
     if not db.exists():
         raise EstateMissing(LABS_MISSING_MSG)
+    return get_ro_conn(db)
+
+
+def open_colleges(settings) -> sqlite3.Connection:
+    """Read-only connection to the current colleges snapshot (IPEDS)."""
+    m = current_manifest(settings, "colleges")
+    if not m:
+        raise EstateMissing(COLLEGES_MISSING_MSG)
+    db = Path(m["run_dir"]) / m.get("db_file", "collegesref.db")
+    if not db.exists():
+        raise EstateMissing(COLLEGES_MISSING_MSG)
+    return get_ro_conn(db)
+
+
+def open_private_schools(settings) -> sqlite3.Connection:
+    """Read-only connection to the current private-schools snapshot (PSS)."""
+    m = current_manifest(settings, "private_schools")
+    if not m:
+        raise EstateMissing(PSS_MISSING_MSG)
+    db = Path(m["run_dir"]) / m.get("db_file", "pssref.db")
+    if not db.exists():
+        raise EstateMissing(PSS_MISSING_MSG)
     return get_ro_conn(db)

@@ -198,6 +198,7 @@ FIND_COLUMNS = [
     ("cert_type_label", "Certificate", None),
     ("control_label", "Ownership", None),
     ("city", "City", None), ("state", "St", None), ("zip", "Zip", None),
+    ("area", "Area", None),
     ("phone", "Phone", None), ("test_volume", "Tests/yr", "int"),
     ("accreditors", "Accredited", None),
     ("first_certified", "Since", None),
@@ -217,6 +218,7 @@ def query_labs(conn: sqlite3.Connection, *, states: list[str] | None = None,
                min_test_volume: int | None = None,
                max_test_volume: int | None = None,
                max_affiliated_labs: int | None = None,
+               rural_only: bool = False,
                sort: str = "test_volume",
                limit: int = 500) -> tuple[list[dict], list[str]]:
     """Filterable read over the labs estate. Returns (rows, warnings)."""
@@ -229,6 +231,8 @@ def query_labs(conn: sqlite3.Connection, *, states: list[str] | None = None,
         where.append("active = 1")
     if require_phone:
         where.append("phone IS NOT NULL")
+    if rural_only:
+        where.append("urban_rural = 'R'")
     if states:
         ss = [s.upper() for s in states]
         where.append("state IN (%s)" % ",".join("?" * len(ss)))
@@ -262,6 +266,7 @@ def query_labs(conn: sqlite3.Connection, *, states: list[str] | None = None,
         d["cert_type_label"] = CERT_TYPES.get(d["cert_type"],
                                               str(d["cert_type"]))
         d["control_label"] = CONTROL_TYPES.get(d["control_type"], None)
+        d["area"] = {"U": "Urban", "R": "Rural"}.get(d.get("urban_rural"))
         if d["phone"]:
             p = d["phone"]
             d["phone"] = f"({p[:3]}) {p[3:6]}-{p[6:]}"
@@ -278,4 +283,9 @@ def query_labs(conn: sqlite3.Connection, *, states: list[str] | None = None,
         warnings.append("chain screen is a name heuristic — multi-site "
                         "regionals without a famous name can slip through; "
                         "affiliated_labs column is the multi-site signal")
+    if rural_only:
+        warnings.append("rural = CMS's CBSA-based flag (outside metro/micro "
+                        "areas) — stricter than 'small town'; drop "
+                        "rural_only and use classify_rural for graded "
+                        "RUCA classes")
     return out, warnings
