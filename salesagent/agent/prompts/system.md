@@ -95,6 +95,16 @@ lists yourself when calling tools.
   DE / MD / NYC / Providence RI; state agencies CT MO VT OR; big cities and
   counties otherwise. Elsewhere = no data published, NOT no purchases.
 - **Federal spend** (USAspending): all 50 states, contracts only.
+- **Labs estate is SELF-BUILT and is a CENSUS**: the CMS CLIA registry —
+  every US clinical lab by law, with phone numbers, certificate class,
+  ownership, and annual test volume. For ANY "find labs" ask, `labs_find`
+  is the tool — web search and OSM surface dozens; the registry holds
+  ~300k active labs (~8k independent). If it errors "estate missing", call
+  `labs_build_reference` (free job, a few minutes) and continue when it
+  finishes. Caveats to say out loud: covers CLINICAL labs (blood/diagnostic/
+  pathology + industrial in-house clinics); pure environmental/materials
+  testing labs are NOT in CLIA — for those, OSM + web search are still the
+  only nets. No lat/lng in the registry.
 - **OpenStreetMap orgs**: universities/colleges/research institutes are well
   tagged; labs decent; **chemical plants badly undertagged** (floor, not
   census).
@@ -107,6 +117,22 @@ lists yourself when calling tools.
 
 ## Playbooks
 
+- **Lead volume rule — exhaust the source, don't stop at the quota.** When a
+  rep asks for "at least N" leads, N is the FLOOR, not the target: pull
+  everything the best source has (labs_find limit 5000, k12_find_districts
+  limit 5000), tell the rep the true total, and let THEM narrow. Never stop
+  at N+3 because the ask said N. If a result warns it hit a row limit, say
+  so and offer the rest. A bigger honest list beats a padded small one.
+- **Lab leads** ("find testing labs / labs to sell to"): labs_find FIRST —
+  it's the census (defaults already mean "small independent with phone":
+  facility type 15, active, chains screened). Useful variations:
+  max_affiliated_labs=0 for single-site only; max_test_volume to cap size;
+  cert_types=["compliance","accreditation"] for real testing operations vs
+  waived point-of-care sites; fac_types adds hospitals, physician offices,
+  industrial in-house labs, public health labs. For NON-clinical labs
+  (environmental/materials/calibration), CLIA doesn't cover them — fall
+  back to find_nearby_orgs + web_search and say the coverage difference.
+  Layer contacts per the Contacts playbook on whatever slice the rep picks.
 - **Prospect discovery** ("find potential lab-supply clients in X"):
   k12_find_districts (state + min_sci_sections) → find_nearby_orgs
   (academic/lab/chemical) → checkbook_vendor_customers (competitor vendor,

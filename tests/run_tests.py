@@ -441,4 +441,126 @@ ok(cts[0]["district"].startswith("Newark"), "estate name enrichment")
 ok(k12_local.districts_without_contact(app, ["3412345", "3499999"])
    == ["3499999"], "districts_without_contact")
 
+print("CLIA labs estate (integrations/clia.py):")
+from salesagent import estate as _estate
+from salesagent.integrations import clia
+
+_CLIA_ROW = {
+    "PRVDR_NUM": "01D9999999", "FAC_NAME": "DECATUR DIAGNOSTIC LAB INC",
+    "ADDTNL_FAC_NAME": "", "ST_ADR": "12 MAIN ST", "ADDTNL_ST_ADR": "",
+    "CITY_NAME": "DECATUR", "STATE_CD": "al", "ZIP_CD": "356010000",
+    "FIPS_CNTY_CD": "103", "PHNE_NUM": "(256) 350-1234",
+    "FAX_PHNE_NUM": "", "GNRL_FAC_TYPE_CD": "15", "CRTFCT_TYPE_CD": "1",
+    "GNRL_CNTL_TYPE_CD": "04", "PGM_TRMNTN_CD": "00",
+    "TRMNTN_EXPRTN_DT": "20270601", "ORGNL_PRTCPTN_DT": "19950115",
+    "CAP_ACRDTD_Y_MATCH_SW": "Y", "COLA_ACRDTD_Y_MATCH_SW": "N",
+    "FORM_116_ACRDTD_TEST_VOL_CNT": "1000", "FORM_1557_TEST_VOL_CNT": "500",
+    "WVD_TEST_VOL_CNT": "x", "DRCTLY_AFLTD_LAB_CNT": "0",
+    "CBSA_URBN_RRL_IND": "U",
+}
+t = clia.row_to_lab(_CLIA_ROW)
+ok(t is not None and t[0] == "01D9999999", "row_to_lab keeps CLIA number")
+ok(t[6] == "AL" and t[7] == "35601", "state uppercased, zip trimmed to 5")
+ok(t[9] == "2563501234", "phone reduced to 10 digits")
+ok(t[14] == 1 and t[16] == "2027-06-01", "active flag + ISO expiry")
+ok(t[18] == "CAP" and t[19] == 1500, "accreditor match list + summed volumes")
+ok(clia.row_to_lab({"PRVDR_NUM": "", "FAC_NAME": "X"}) is None,
+   "rows without CLIA number dropped")
+ok(clia.is_chain("QUEST DIAGNOSTICS INC") and clia.is_chain("BioLife Plasma"),
+   "chain screen catches Quest + plasma networks")
+ok(not clia.is_chain("DECATUR DIAGNOSTIC LAB"), "independents pass the screen")
+ok(clia.resolve_fac_types(["independent lab", 14, "21"]) == [15, 14, 21],
+   "fac types resolve by name and code")
+try:
+    clia.resolve_fac_types(["zzz"])
+    raise AssertionError("should raise")
+except ValueError as e:
+    ok("independent lab" in str(e), "unknown fac type error lists options")
+
+labdb = sqlite3.connect(":memory:")
+labdb.row_factory = sqlite3.Row
+labdb.executescript(_estate.LABSREF_SCHEMA)
+def _lab(clia_num, name, state="NY", fac=15, cert=1, active=1, phone="5551234567",
+         vol=100, affil=0):
+    labdb.execute(clia.INSERT_SQL, (clia_num, name, None, "1 St", None, "City",
+                                    state, "10001", None, phone, None, fac,
+                                    cert, 4, active, "00" if active else "01",
+                                    None, "2001-01-01", None, vol, affil, "U"))
+_lab("A1", "SMALL INDIE LAB", vol=900)
+_lab("A2", "QUEST DIAGNOSTICS WESTBURY", vol=99999)
+_lab("A3", "DEAD LAB", active=0)
+_lab("A4", "NO PHONE LAB", phone=None)
+_lab("A5", "HOSPITAL LAB", fac=14)
+_lab("A6", "WAIVED CORNER CLINIC", cert=2, vol=5)
+_lab("A7", "MULTI SITE OPS", affil=9)
+rows, warns = clia.query_labs(labdb)
+names = {r["name"] for r in rows}
+ok("SMALL INDIE LAB" in names and "WAIVED CORNER CLINIC" in names,
+   "defaults return active independent labs with phones")
+ok("QUEST DIAGNOSTICS WESTBURY" not in names, "default chain screen works")
+ok("DEAD LAB" not in names and "NO PHONE LAB" not in names
+   and "HOSPITAL LAB" not in names, "active/phone/fac-type defaults hold")
+ok(any("chain/franchise" in w for w in warns), "chain exclusion warned")
+rows2, _ = clia.query_labs(labdb, exclude_chains=False, require_phone=False,
+                           active_only=False, fac_types=[15, 14])
+ok(len(rows2) == 7, "filters all relax")
+rows3, _ = clia.query_labs(labdb, cert_types=["compliance"])
+ok(all(r["cert_type"] == 1 for r in rows3), "cert type name filter")
+rows4, _ = clia.query_labs(labdb, max_affiliated_labs=0)
+ok(all(r["affiliated_labs"] == 0 for r in rows4), "single-site filter")
+ok(rows[0]["test_volume"] >= rows[-1]["test_volume"], "default sort by volume")
+ok(rows[0]["phone"].startswith("(") and rows[0]["fac_type_label"] == "independent lab",
+   "phone formatted + labels attached")
+
+print("history trim (_trim_history):")
+import json as _json
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from salesagent.agent.graph import TRIM_KEEP_RECENT, _trim_history
+
+
+def _env(n):
+    return _json.dumps({"ok": True, "summary": "s", "artifact_id": "art_x",
+                        "row_count": n, "sample_rows": [["r"] * 30] * 15,
+                        "stats": {"pad": "y" * 900}})
+
+
+def _ai_tc(tcid):
+    return AIMessage(content=[{"type": "thinking", "thinking": "t" * 500},
+                              {"type": "text", "text": "calling"}],
+                     tool_calls=[{"name": "k12_find_districts",
+                                  "args": {}, "id": tcid}])
+
+
+old = []
+for j in range(15):                     # 15 old rounds = 30 msgs before turn 2
+    old += [_ai_tc(f"tc{j}"), ToolMessage(content=_env(j), tool_call_id=f"tc{j}",
+                                          name="k12_find_districts")]
+msgs = [HumanMessage(content="turn 1")] + old + [
+    HumanMessage(content="turn 2"), _ai_tc("tcZ"),
+    ToolMessage(content=_env(99), tool_call_id="tcZ", name="k12_find_districts")]
+out = _trim_history(msgs)
+ok(len(out) == len(msgs), "trim never drops messages (pairing intact)")
+ok(_json.loads(out[-1].content)["row_count"] == 99
+   and "sample_rows" in out[-1].content, "current-turn tool result untouched")
+first_tool = next(m for m in out if isinstance(m, ToolMessage))
+slim = _json.loads(first_tool.content)
+ok("sample_rows" not in slim and slim["artifact_id"] == "art_x"
+   and "trimmed" in slim, "old tool result slimmed to summary + artifact_id")
+ok(first_tool.tool_call_id == "tc0", "slimmed result keeps tool_call_id")
+first_ai = next(m for m in out if isinstance(m, AIMessage))
+ok(all(p.get("type") != "thinking" for p in first_ai.content),
+   "old AI thinking blocks dropped")
+ok(first_ai.tool_calls and first_ai.tool_calls[0]["id"] == "tc0",
+   "old AI tool_calls preserved")
+last_ai = [m for m in out if isinstance(m, AIMessage)][-1]
+ok(any(p.get("type") == "thinking" for p in last_ai.content),
+   "current-turn thinking preserved")
+grown = _trim_history(msgs + [_ai_tc("tcY"),
+                              ToolMessage(content=_env(1), tool_call_id="tcY",
+                                          name="k12_find_districts")])
+ok([m.content for m in grown[:len(msgs)]] == [m.content for m in out],
+   "trim is byte-stable within a turn (cache-safe)")
+short = [HumanMessage(content="hi"), AIMessage(content="hello")]
+ok(_trim_history(short) == short, "short conversations pass through")
+
 print(f"\nALL {PASS} ASSERTIONS PASSED")

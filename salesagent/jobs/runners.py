@@ -412,9 +412,12 @@ def verify_status_bulk(ctx: JobCtx) -> str:
 
 from .k12_build import k12_build  # noqa: E402  (runner lives in its own module)
 
+from .labs_build import labs_build  # noqa: E402  (runner lives in its own module)
+
 RUNNERS = {
     "branch_finder": branch_finder,
     "price_scrape": price_scrape,
     "verify_status_bulk": verify_status_bulk,
     "k12_build": k12_build,
+    "labs_build": labs_build,
 }

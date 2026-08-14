@@ -240,15 +240,16 @@ async function selectConversation(cid) {
     pane.innerHTML = "";
     for (const m of out.messages) {
       if (m.role === "user") {
-        addBubble(pane, "user", m.content.text);
+        addBubble(pane, "user", m.content.text, { ts: m.created_at });
       } else if (m.content.events && m.content.events.length) {
         // full render log persisted with the turn: thinking, tool chips and
         // text runs replay in their original order
         replayEvents(pane, m.content.events);
         if (m.content.error) addBubble(pane, "assistant", "", { error: m.content.error });
+        addTimeStamp(pane, m.created_at, "assistant");
       } else {
         addBubble(pane, "assistant", m.content.text || "",
-                  { error: m.content.error });
+                  { error: m.content.error, ts: m.created_at });
       }
     }
     // turn still waiting on an approval? put the card back
@@ -285,6 +286,28 @@ async function selectConversation(cid) {
 }
 
 /* ---------------- chat rendering (all pane-scoped) ---------------- */
+/* Compact Eastern-time stamp: "2:41 PM ET" today, "8/11 2:41 PM ET" older. */
+function etStamp(ts, opts = {}) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts);
+  const tz = { timeZone: "America/New_York" };
+  const day = new Intl.DateTimeFormat("en-US", { ...tz, month: "numeric", day: "numeric" });
+  const time = new Intl.DateTimeFormat("en-US", { ...tz, hour: "numeric", minute: "2-digit" });
+  const sameDay = day.format(d) === day.format(new Date());
+  return (opts.alwaysDate || !sameDay ? day.format(d) + " " : "")
+    + time.format(d) + " ET";
+}
+
+function addTimeStamp(pane, ts, role) {
+  const t = document.createElement("div");
+  t.className = "msg-time" + (role === "user" ? " right" : "");
+  t.textContent = etStamp(ts);
+  t.title = String(ts) + " (UTC)";
+  pane.appendChild(t);
+  return t;
+}
+
 function addBubble(pane, role, text, opts = {}) {
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
@@ -301,6 +324,7 @@ function addBubble(pane, role, text, opts = {}) {
   }
   wrap.appendChild(b);
   pane.appendChild(wrap);
+  if (opts.ts) addTimeStamp(pane, opts.ts, role);
   scrollPane(pane);
   return b;
 }
@@ -425,6 +449,7 @@ function makeTurnHandler(cid) {
       if (isActive()) Artifacts.onJobEvent(ev, data);
     } else if (ev === "done") {
       settleThinking();
+      addTimeStamp(pane, new Date().toISOString(), "assistant");
     } else if (ev === "error") {
       settleThinking();
       addBubble(pane, "assistant", "", { error: data.message });
@@ -515,7 +540,7 @@ async function sendMessage() {
 
   const pane = ensurePane(cid);
   pane.querySelector(".welcome")?.remove();
-  addBubble(pane, "user", text);
+  addBubble(pane, "user", text, { ts: new Date().toISOString() });
   await runTurnStream(cid, `/api/conversations/${cid}/message`, { text });
 }
 
@@ -757,7 +782,8 @@ document.querySelectorAll(".help-tab:not(.adm-tab)").forEach((b) =>
   b.addEventListener("click", () => setHelpTab(b.dataset.tab)));
 
 /* ---------------- admin panel (users + activity) ---------------- */
-function fmtTs(ts) { return ts ? String(ts).replace("T", " ").replace("Z", "") : "—"; }
+/* All server timestamps are UTC; everything user-facing renders Eastern. */
+function fmtTs(ts) { return etStamp(ts, { alwaysDate: true }); }
 
 async function renderAdminUsers() {
   const box = $("#adm-users-table");

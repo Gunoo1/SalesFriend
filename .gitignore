@@ -1,8 +1,10 @@
 # secrets — the real .env NEVER goes to git (see .env.example)
 .env
+.env.haiku
 
 # runtime state (chat history, artifacts, caches, estate) — moves by file copy
 data/
+data_haiku/
 logs/
 # internal sales data (trends fallback; the deploy bundle carries the real one)
 Category.xlsx

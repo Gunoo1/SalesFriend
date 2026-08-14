@@ -112,6 +112,11 @@ body.col-dragging iframe, body.col-dragging .leaflet-container { pointer-events:
 .msg.assistant .bubble { background: #eef2f7; border-bottom-left-radius: 3px; }
 .msg.assistant .bubble.error { background: #ffc7ce; color: #9c0006; }
 .msg .meta { font-size: 11px; color: var(--muted); margin: 2px 4px; }
+.msg-time {
+  font-size: 10px; color: var(--muted); opacity: .85;
+  margin: -8px 4px 12px; user-select: none;
+}
+.msg-time.right { text-align: right; }
 
 /* rendered markdown inside assistant bubbles (user bubbles stay plain text) */
 .msg.assistant .bubble { white-space: normal; }

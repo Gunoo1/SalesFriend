@@ -13,7 +13,8 @@ import json
 import time
 from pathlib import Path
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (AIMessage, HumanMessage, SystemMessage,
+                                     ToolMessage)
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
@@ -81,6 +82,63 @@ def _heal_dangling(msgs: list) -> list:
     return out
 
 
+TRIM_KEEP_RECENT = 20  # messages before the current turn kept verbatim
+_TRIM_KEEP_KEYS = ("ok", "summary", "artifact_id", "version", "kind",
+                   "row_count", "job_id", "credits_spent", "warnings",
+                   "declined", "cancelled")
+
+
+def _trim_history(msgs: list) -> list:
+    """Prompt-only history diet (never persisted — like _heal_dangling).
+
+    Long conversations replay every past tool envelope and thinking block on
+    every model call; that was most of the input-token bill. For messages
+    OLDER than (last human message - TRIM_KEEP_RECENT): tool-result bodies
+    shrink to their summary fields (full rows live in the artifact store and
+    stay reachable via artifact_peek/transform_artifact), and thinking blocks
+    are dropped from AI messages (the API only needs them for the current
+    tool loop). AI tool_calls and ToolMessage pairing stay intact.
+
+    The cutoff is anchored to the LAST HumanMessage so the trimmed prefix is
+    byte-stable across supersteps within a turn — a per-superstep boundary
+    would invalidate the prompt-cache prefix every tool round.
+    """
+    last_human = 0
+    for i, m in enumerate(msgs):
+        if isinstance(m, HumanMessage):
+            last_human = i
+    cutoff = max(0, last_human - TRIM_KEEP_RECENT)
+    out: list = []
+    for i, m in enumerate(msgs):
+        if i >= cutoff:
+            out.append(m)
+        elif (isinstance(m, ToolMessage) and isinstance(m.content, str)
+                and len(m.content) > 600):
+            try:
+                env = json.loads(m.content)
+            except (ValueError, TypeError):
+                out.append(m)
+                continue
+            slim = {k: env[k] for k in _TRIM_KEEP_KEYS if k in env}
+            slim["trimmed"] = ("older tool result; full rows are still in the "
+                               "artifact store — artifact_peek/transform_artifact "
+                               "by artifact_id")
+            out.append(ToolMessage(content=json.dumps(slim, ensure_ascii=False,
+                                                      default=str),
+                                   tool_call_id=m.tool_call_id,
+                                   name=m.name or ""))
+        elif isinstance(m, AIMessage) and isinstance(m.content, list):
+            parts = [p for p in m.content
+                     if not (isinstance(p, dict)
+                             and p.get("type") in ("thinking",
+                                                   "redacted_thinking"))]
+            out.append(m.model_copy(update={"content": parts})
+                       if len(parts) != len(m.content) else m)
+        else:
+            out.append(m)
+    return out
+
+
 async def agent_node(state: AgentState, config: RunnableConfig) -> dict:
     """Streams the model call itself so sonnet-5's adaptive-thinking deltas
     can be surfaced live: LangGraph's messages-mode callback tap carries TEXT
@@ -91,7 +149,8 @@ async def agent_node(state: AgentState, config: RunnableConfig) -> dict:
     writer = get_stream_writer()
     sysmsg = SystemMessage(content=render_system_prompt(RUNTIME["settings"], config))
     resp = None
-    async for chunk in llm.astream([sysmsg, *_heal_dangling(list(state["messages"]))]):
+    prompt_msgs = _trim_history(_heal_dangling(list(state["messages"])))
+    async for chunk in llm.astream([sysmsg, *prompt_msgs]):
         resp = chunk if resp is None else resp + chunk
         c = chunk.content
         if isinstance(c, list):

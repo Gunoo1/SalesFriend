@@ -35,11 +35,12 @@ credit/job counts + a merged recent-events feed incl. Seamless spends vs the
 day cap). Removing a user locks them out immediately; their past
 conversations stay in the DB for history but become unreachable.
 
-## What the agent can do (26 tools)
+## What the agent can do (32 tools)
 
 | Family | Tools | Notes |
 |---|---|---|
 | K12 intel (free, own estate) | k12_build_reference (**builds the estate** from fresh NCES CCD/F-33/CRDC public data), k12_find_districts, k12_district_profile, k12_contacts | estate missing → tools say so and the agent builds it; partial-state estates refuse uncovered queries |
+| Lab leads (free, own estate) | labs_build_reference (**builds the estate** from the public CMS CLIA registry — the census of every US clinical lab), labs_find | ~300k active labs w/ phones; defaults = active independent labs, chains/franchises name-screened; filters: state, facility type, certificate class, test volume, single-site |
 | People (Seamless.ai) | seamless_search (preview), seamless_research (**paid → approval card**) | 5-layer credit rails; `SEAMLESS_DRY_RUN=1` default; results persist to contacts_app (the app's own contact history) |
 | Gov spend (free) | usaspending_vendor_customers, usaspending_keyword_vendors (+Haiku noise filter), checkbook_vendor_customers, checkbook_basket | coverage limits baked into descriptions |
 | Geo | find_company_locations (Fastenal=locator scrape job, others=OSM brand job; memoized 30d in company_locations), find_nearby_orgs (Overpass, vendored state bboxes), verify_business_status (Serper, open/closed) | grainger.com scrape denylisted → OSM |

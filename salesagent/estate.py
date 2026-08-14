@@ -81,6 +81,48 @@ CREATE TABLE IF NOT EXISTS district_crdc (
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 """
 
+LABS_MISSING_MSG = (
+    "No labs reference estate has been built in this app yet. Call "
+    "labs_build_reference (free background job, a few minutes) — it downloads "
+    "the current CMS CLIA registry (every clinical lab in the US, with phone "
+    "numbers) and builds this app's own database — then retry once the job "
+    "finishes.")
+
+# Schema of a labs run snapshot (from the CMS Provider of Services CLIA file).
+# Shared by the build job and the offline tests, same convention as K12REF.
+LABSREF_SCHEMA = """
+CREATE TABLE IF NOT EXISTS labs (
+  clia_num       TEXT PRIMARY KEY,      -- CLIA certificate number (PRVDR_NUM)
+  name           TEXT NOT NULL,
+  addl_name      TEXT,
+  street         TEXT,
+  street2        TEXT,
+  city           TEXT,
+  state          TEXT,                  -- USPS 2-letter
+  zip            TEXT,                  -- 5-digit
+  county_fips    TEXT,
+  phone          TEXT,                  -- 10 digits, no punctuation
+  fax            TEXT,
+  fac_type       INTEGER,               -- GNRL_FAC_TYPE_CD (15 = independent lab)
+  cert_type      INTEGER,               -- CRTFCT_TYPE_CD (1 compliance, 2 waiver,
+                                        --   3 accreditation, 4 PPM, 9 registration)
+  control_type   INTEGER,               -- GNRL_CNTL_TYPE_CD ownership (best-effort labels)
+  active         INTEGER,               -- PGM_TRMNTN_CD == '00'
+  term_code      TEXT,
+  cert_expire    TEXT,                  -- ISO date
+  first_certified TEXT,                 -- ISO date (ORGNL_PRTCPTN_DT)
+  accreditors    TEXT,                  -- comma list of matched accreditors (CAP,COLA,...)
+  test_volume    INTEGER,               -- annual tests, all certificate forms summed
+  affiliated_labs INTEGER,              -- DRCTLY_AFLTD_LAB_CNT (multi-site signal)
+  urban_rural    TEXT                   -- U / R
+);
+CREATE INDEX IF NOT EXISTS idx_labs_state ON labs(state);
+CREATE INDEX IF NOT EXISTS idx_labs_fac ON labs(fac_type);
+CREATE INDEX IF NOT EXISTS idx_labs_active ON labs(active);
+
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+"""
+
 
 def domain_dir(settings, domain: str) -> Path:
     return Path(settings.estate_dir) / domain
@@ -153,4 +195,15 @@ def open_k12(settings) -> sqlite3.Connection:
     db = Path(m["run_dir"]) / m.get("db_file", "k12ref.db")
     if not db.exists():
         raise EstateMissing(K12_MISSING_MSG)
+    return get_ro_conn(db)
+
+
+def open_labs(settings) -> sqlite3.Connection:
+    """Read-only connection to the current labs snapshot (CLIA registry)."""
+    m = current_manifest(settings, "labs")
+    if not m:
+        raise EstateMissing(LABS_MISSING_MSG)
+    db = Path(m["run_dir"]) / m.get("db_file", "labsref.db")
+    if not db.exists():
+        raise EstateMissing(LABS_MISSING_MSG)
     return get_ro_conn(db)
