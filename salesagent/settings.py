@@ -39,6 +39,10 @@ class Settings:
     orchestrator_model: str
     extract_model: str        # bulk in-tool extraction stays on Haiku (workspace rule)
 
+    ollama_base_url: str      # used whenever a model name is not claude-*
+    ollama_num_ctx: int       # must fit system prompt + tool schemas + history
+    ollama_num_predict: int   # generation cap per call (CPU tok/s makes this matter)
+
     seamless_day_cap: int        # org credits/day, enforced in the client not the prompt
     seamless_confirm_threshold: int  # credits; spends above this require user confirm
     convo_budget_default: int
@@ -88,6 +92,10 @@ def load_settings() -> Settings:
         price_comparison_url=os.environ.get("PRICE_COMPARISON_URL", "").rstrip("/"),
         orchestrator_model=os.environ.get("ORCHESTRATOR_MODEL", "claude-sonnet-5"),
         extract_model=os.environ.get("EXTRACT_MODEL", "claude-haiku-4-5"),
+        ollama_base_url=os.environ.get("OLLAMA_BASE_URL",
+                                       "http://localhost:11434").rstrip("/"),
+        ollama_num_ctx=int(os.environ.get("OLLAMA_NUM_CTX", "16384")),
+        ollama_num_predict=int(os.environ.get("OLLAMA_NUM_PREDICT", "4096")),
         seamless_day_cap=int(os.environ.get("SEAMLESS_DAY_CAP", "200")),
         seamless_confirm_threshold=int(os.environ.get("SEAMLESS_CONFIRM_THRESHOLD", "5")),
         convo_budget_default=int(os.environ.get("SEAMLESS_CONVO_BUDGET", "25")),

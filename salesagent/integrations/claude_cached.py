@@ -28,14 +28,34 @@ def cached_call(settings: Settings, conn: sqlite3.Connection, *, task: str,
     if row:
         return json.loads(row["response_json"])
 
-    import anthropic  # lazy: only needed on a cache miss
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    resp = client.messages.create(
-        model=model, max_tokens=max_tokens,
-        output_config={"format": {"type": "json_schema", "schema": schema}},
-        messages=[{"role": "user", "content": prompt}])
-    text = "".join(b.text for b in resp.content if b.type == "text")
-    out = json.loads(text)
+    if model.startswith("claude"):
+        import anthropic  # lazy: only needed on a cache miss
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        resp = client.messages.create(
+            model=model, max_tokens=max_tokens,
+            output_config={"format": {"type": "json_schema", "schema": schema}},
+            messages=[{"role": "user", "content": prompt}])
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        out = json.loads(text)
+    else:
+        # Ollama structured outputs: format=<json schema> constrains decoding,
+        # same contract as Anthropic's output_config above. think=False skips
+        # qwen3-style deliberation (pure latency at CPU speeds); retried
+        # without the flag for models that reject it.
+        import requests
+        payload = {"model": model, "stream": False, "think": False,
+                   "format": schema,
+                   "messages": [{"role": "user", "content": prompt}],
+                   "options": {"num_ctx": settings.ollama_num_ctx,
+                               "num_predict": max_tokens}}
+        r = requests.post(f"{settings.ollama_base_url}/api/chat",
+                          json=payload, timeout=600)
+        if r.status_code == 400 and "think" in r.text.lower():
+            payload.pop("think")
+            r = requests.post(f"{settings.ollama_base_url}/api/chat",
+                              json=payload, timeout=600)
+        r.raise_for_status()
+        out = json.loads(r.json()["message"]["content"])
     with conn:
         conn.execute(
             "INSERT OR REPLACE INTO claude_cache (cache_key, task, model,"
