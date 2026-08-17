@@ -8,14 +8,16 @@ Guards: you can't delete yourself, and you can't delete the last admin.
 """
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .. import config_store
 from ..auth import create_user, current_user, db_conn, hash_password
-from ..settings import load_settings
+from ..settings import invalidate_settings, load_settings
 
 router = APIRouter(prefix="/api/admin")
 
@@ -112,6 +114,50 @@ def remove_user(uid: int, admin: dict = Depends(current_admin),
         conn.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM users WHERE id=?", (uid,))
     return {"ok": True, "removed": row["username"]}
+
+
+def _integration_fields(conn: sqlite3.Connection) -> list[dict]:
+    db_rows = {r["name"]: r for r in conn.execute(
+        "SELECT name, value, updated_by, updated_at FROM app_config")}
+    out = []
+    for name, (label, group, secret) in config_store.FIELDS.items():
+        env_val = os.environ.get(name.upper(), "")
+        row = db_rows.get(name)
+        effective = (row["value"] if row else env_val) or ""
+        source = "app" if row else ("env" if env_val else "unset")
+        preview = (("****" + effective[-4:]) if secret else effective) \
+            if effective else ""
+        out.append({"name": name, "label": label, "group": group,
+                    "secret": secret, "source": source, "preview": preview,
+                    "updated_by": row["updated_by"] if row else None,
+                    "updated_at": row["updated_at"] if row else None})
+    return out
+
+
+@router.get("/integrations")
+def get_integrations(admin: dict = Depends(current_admin),
+                     conn: sqlite3.Connection = Depends(db_conn)):
+    return {"fields": _integration_fields(conn)}
+
+
+class IntegrationValues(BaseModel):
+    values: dict[str, str]
+
+
+@router.put("/integrations")
+def put_integrations(req: IntegrationValues,
+                     admin: dict = Depends(current_admin),
+                     conn: sqlite3.Connection = Depends(db_conn)):
+    unknown = sorted(set(req.values) - set(config_store.FIELDS))
+    if unknown:
+        raise HTTPException(400, f"unknown fields: {', '.join(unknown)}")
+    if not req.values:
+        raise HTTPException(400, "nothing to save")
+    config_store.set_values(conn, req.values, admin["username"])
+    invalidate_settings()
+    from ..agent.runner import refresh_runtime  # lazy: web boots without graph
+    refresh_runtime(load_settings())
+    return {"ok": True, "fields": _integration_fields(conn)}
 
 
 @router.get("/activity")

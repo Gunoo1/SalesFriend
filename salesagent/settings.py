@@ -73,6 +73,19 @@ def _path(env_key: str, default: Path) -> Path:
 
 @lru_cache(maxsize=1)
 def load_settings() -> Settings:
+    """Env base + admin overrides from app.db (config_store). Cached; call
+    invalidate_settings() after writing app_config so the next reader sees
+    fresh values (single process by design, so in-process clear is total)."""
+    s = _env_settings()
+    from .config_store import apply_overrides  # lazy: avoids import cycle
+    return apply_overrides(s)
+
+
+def invalidate_settings() -> None:
+    load_settings.cache_clear()
+
+
+def _env_settings() -> Settings:
     load_dotenv(ROOT / ".env")
     data_dir = _path("DATA_DIR", ROOT / "data")
     s = Settings(

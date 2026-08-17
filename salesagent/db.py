@@ -130,6 +130,15 @@ CREATE TABLE IF NOT EXISTS seamless_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_day ON seamless_ledger(ts);
 
+-- Admin-editable integration credentials/settings; overrides .env at
+-- load_settings() time (see config_store.py). Absent row = use .env.
+CREATE TABLE IF NOT EXISTS app_config (
+  name        TEXT PRIMARY KEY,
+  value       TEXT NOT NULL,
+  updated_by  TEXT,
+  updated_at  TEXT NOT NULL
+);
+
 -- Ported shape from K12Intel k12/claude_client.py: same sha256 key scheme so
 -- semantics match (task|model|prompt_version|canonical input JSON).
 CREATE TABLE IF NOT EXISTS claude_cache (

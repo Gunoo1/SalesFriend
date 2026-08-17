@@ -862,12 +862,82 @@ async function renderAdminActivity() {
     </table>`;
 }
 
+/* Integrations tab: credentials stored server-side (app_config) over .env.
+   Inputs stay EMPTY unless edited — only touched fields are sent, so saved
+   secrets are never round-tripped back into the page. */
+async function renderAdminIntegrations() {
+  const box = $("#adm-body-integrations");
+  box.innerHTML = `<div class="cap-loading">loading…</div>`;
+  let out;
+  try { out = await api("/api/admin/integrations"); }
+  catch (err) { box.innerHTML = `<div class="cap-loading">${escapeHtml(err.message)}</div>`; return; }
+  paintIntegrations(out.fields);
+}
+
+function paintIntegrations(fields) {
+  const box = $("#adm-body-integrations");
+  const srcBadge = { app: ["cost-paid", "set here"], env: ["cost-free", "from .env"],
+                     unset: ["cost-job", "not set"] };
+  const groups = [...new Set(fields.map((f) => f.group))];
+  const body = groups.map((g) => `
+    <div class="adm-int-group">${escapeHtml(g)}</div>
+    ${fields.filter((f) => f.group === g).map((f) => {
+      const [cls, txt] = srcBadge[f.source];
+      return `
+      <div class="adm-int-row" data-name="${f.name}">
+        <label class="adm-int-label">${escapeHtml(f.label)}</label>
+        <input class="adm-int-input" type="${f.secret ? "password" : "text"}"
+               autocomplete="off" spellcheck="false"
+               placeholder="${escapeHtml(f.preview || "(not set)")}">
+        <span class="cost-badge ${cls}" title="${f.updated_by ? `by ${escapeHtml(f.updated_by)} ${fmtTs(f.updated_at)}` : ""}">${txt}</span>
+        <button class="adm-int-clear linkish" ${f.source === "app" ? "" : "disabled"}
+                title="Remove the value saved here and fall back to .env">clear</button>
+      </div>`;
+    }).join("")}`).join("");
+  box.innerHTML = `
+    <p class="adm-int-note">Values save to the app database and take effect
+    immediately — no restart. A blank field is left unchanged; saved secrets
+    show only their last 4 characters.</p>
+    ${body}
+    <div class="adm-int-foot">
+      <button id="adm-int-save">Save changes</button>
+      <span id="adm-int-msg" class="adm-msg"></span>
+    </div>`;
+  $("#adm-int-save").onclick = async () => {
+    const values = {};
+    box.querySelectorAll(".adm-int-row").forEach((row) => {
+      const v = row.querySelector(".adm-int-input").value.trim();
+      if (v) values[row.dataset.name] = v;
+    });
+    const msg = $("#adm-int-msg");
+    if (!Object.keys(values).length) { msg.textContent = "nothing changed"; return; }
+    msg.textContent = "saving…";
+    try {
+      const out = await api("/api/admin/integrations",
+                            { method: "PUT", body: JSON.stringify({ values }) });
+      paintIntegrations(out.fields);
+      $("#adm-int-msg").textContent = "saved — active immediately";
+    } catch (err) { msg.textContent = err.message; }
+  };
+  box.querySelectorAll(".adm-int-clear").forEach((b) => b.onclick = async () => {
+    const row = b.closest(".adm-int-row");
+    if (!confirm(`Clear the saved value for '${row.dataset.name}' and fall back to .env?`)) return;
+    try {
+      const out = await api("/api/admin/integrations",
+                            { method: "PUT", body: JSON.stringify({ values: { [row.dataset.name]: "" } }) });
+      paintIntegrations(out.fields);
+    } catch (err) { alert(err.message); }
+  });
+}
+
 function setAdminTab(tab) {
   document.querySelectorAll(".adm-tab").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === tab));
   $("#adm-body-users").classList.toggle("hidden", tab !== "users");
   $("#adm-body-activity").classList.toggle("hidden", tab !== "activity");
+  $("#adm-body-integrations").classList.toggle("hidden", tab !== "integrations");
   if (tab === "users") renderAdminUsers();
+  else if (tab === "integrations") renderAdminIntegrations();
   else renderAdminActivity();
 }
 function openAdmin() { setAdminTab("users"); $("#admin-overlay").classList.remove("hidden"); }

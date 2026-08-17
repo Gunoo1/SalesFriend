@@ -431,6 +431,18 @@ table.mdt tr:nth-child(even) td { background: #f7f9fc; }
 .adm-actions .adm-del { color: #9c0006; border-color: #ffc7ce; }
 .adm-actions button:hover { border-color: var(--accent); color: var(--navy); }
 .adm-actions .adm-del:hover { background: #fff5f6; color: #9c0006; border-color: #9c0006; }
+.adm-int-note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+.adm-int-group { font-weight: 600; font-size: 13px; margin: 14px 0 6px; }
+.adm-int-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+.adm-int-label { flex: 0 0 240px; font-size: 12.5px; color: var(--muted); }
+.adm-int-input { flex: 1; font: inherit; font-size: 12.5px; padding: 5px 8px;
+  border: 1px solid var(--line, #d7dbe2); border-radius: 6px; min-width: 0; }
+.adm-int-row .cost-badge { flex: 0 0 auto; }
+.adm-int-clear[disabled] { opacity: .35; pointer-events: none; }
+.adm-int-foot { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+.adm-int-foot button { font: inherit; font-size: 12.5px; padding: 6px 14px;
+  border: 1px solid var(--line, #d7dbe2); border-radius: 6px; cursor: pointer;
+  background: var(--navy, #1f3a5f); color: #fff; }
 .adm-stats { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; line-height: 1.8; }
 .adm-ts { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
 .adm-ctx { max-width: 180px; }

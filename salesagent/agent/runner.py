@@ -36,6 +36,19 @@ def request_stop(conversation_id: str) -> None:
     STOP_REQUESTS.add(conversation_id)
 
 
+def refresh_runtime(settings: Settings) -> None:
+    """Admin saved new credentials/models (config_store): swap the settings
+    snapshot and rebuild the bound LLM in place. Nodes read RUNTIME at call
+    time, so the compiled graph itself never needs rebuilding. No-op before
+    the first turn — _get_graph will build from fresh load_settings() then."""
+    registry = graph_mod.RUNTIME.get("registry")
+    if registry is None:
+        return
+    graph_mod.RUNTIME.update(
+        settings=settings,
+        llm=make_orchestrator(settings, as_anthropic_tools(registry)))
+
+
 async def _get_graph(settings: Settings):
     global _GRAPH, _SAVER_CM
     if _GRAPH is not None:
