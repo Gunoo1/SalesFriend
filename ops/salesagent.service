@@ -1,0 +1,17 @@
+# systemd unit for the SalesAgent app (native Ubuntu deploy, no Docker).
+# Install:  sudo cp ops/salesagent.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now salesagent
+[Unit]
+Description=SalesAgent web app (uvicorn, single worker by design - SQLite)
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/salesagent
+ExecStart=/opt/salesagent/.venv/bin/python run.py
+Restart=always
+RestartSec=3
+# App reads /opt/salesagent/.env itself (settings.py); no EnvironmentFile needed.
+
+[Install]
+WantedBy=multi-user.target
